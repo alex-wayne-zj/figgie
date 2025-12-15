@@ -4,7 +4,7 @@ const Home: React.FC = () => {
   return (
     <div style={{
       width: "100%",
-      minHeight: "80vh",
+      minHeight: "88vh",
       background: "linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%)",
       display: "flex",
       flexDirection: "column",

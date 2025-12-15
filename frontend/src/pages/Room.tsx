@@ -11,8 +11,8 @@ type Player = {
 };
 
 const randomRobot = (i: number): Player => ({
-  id: `robot${i}`,
-  name: `机器人${i}`,
+  id: `robot${i+1}`,
+  name: `机器人${i+1}`,
   avatar: 'https://img.icons8.com/ios/50/robot-2.png',
   isSelf: false
 });
@@ -64,7 +64,7 @@ const Room: React.FC = () => {
 
   const allRobotCount = players.length;
 
-  const canStart = allRobotCount >= 3; // Only allow if 3 or 4 bots
+  const canStart = allRobotCount >= 3 && isReady; // Only allow if 3 or 4 bots
 
   // 新 handleStartGame: 向 /api/start 发 POST 请求
   const handleStartGame = async () => {
@@ -79,8 +79,7 @@ const Room: React.FC = () => {
       players: [
         { name: myUser.name, id: myUser.id },
         ...players.map(p => ({ name: p.name, id: p.id }))
-      ],
-      robotCount: allRobotCount
+      ]
     };
     try {
       const resp = await fetch('/api/start', {
@@ -88,12 +87,15 @@ const Room: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      console.log(resp)
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);
       }
       // 可根据 resp 处理返回内容。假定跳转即可
-      navigate("/game");
+      navigate("/game", {
+        state: {
+          payload,
+        },
+      });
     } catch (e: any) {
       setStartError('网络异常，游戏无法启动');
       setStartLoading(false);
@@ -104,11 +106,10 @@ const Room: React.FC = () => {
     setIsReady(r => !r);
   };
 
-  // 修改：使整体宽度达到80%
   return (
     <section
       style={{
-        padding: '48px 24px',
+        padding: '24px 24px',
         width: '80vw',
         maxWidth: 960,
         minWidth: 400,
@@ -142,7 +143,7 @@ const Room: React.FC = () => {
       </div>
       {/* 房间ID与复制 */}
       <div style={{ display: 'flex', alignItems: "center", marginBottom: 28, gap: 10 }}>
-        <span style={{fontWeight: 500, fontSize: "1rem", color: "#84a2c7"}}>
+        <span style={{fontWeight: 500, fontSize: "1rem", color: "#84a2c7", marginLeft: 10}}>
           房间 ID：
         </span>
         <span style={{
@@ -174,27 +175,41 @@ const Room: React.FC = () => {
       {/* 自己的头像 —— 独立于座位展示在上方 */}
       <div style={{
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
-        marginBottom: 30,
-        gap: 14
+        justifyContent: "center",
+        marginBottom: 10,
+        textAlign: 'center',
       }}>
-        <img src={myUser.avatar} alt="你的头像" width={56} height={56} style={{
-          borderRadius: "50%",
-          border: "2px solid #a2b5fb",
-          background: "#ecf2fa"
-        }} />
+        <img 
+          src={myUser.avatar} 
+          alt="你的头像" 
+          width={56} 
+          height={56} 
+          style={{
+            borderRadius: "50%",
+            border: "2px solid #a2b5fb",
+            background: "#ecf2fa",
+            marginBottom: 6,
+          }} 
+        />
         <div style={{
-          fontWeight: 700, fontSize: "1.1rem", color: "#1e3150", letterSpacing: 0.4
-        }}>{myUser.name} (ID: {myUser.id})</div>
+          fontWeight: 700, 
+          fontSize: "1.1rem", 
+          color: "#1e3150", 
+          letterSpacing: 0.4
+        }}>
+          {myUser.name}
+        </div>
       </div>
-      {/* 四个座位：你不占座位，全部为机器人/空位 */}
+      {/* 四个座位：你不占座位，只展示机器人或空位，无添加按钮 */}
       <div style={{
         display: "flex",
         gap: 34,
-        marginBottom: 35,
+        marginBottom: 20,
         justifyContent: "center",
         width: "100%",
-        minHeight: 135
+        minHeight: 100
       }}>
         {Array.from({ length: NUM_SLOTS }).map((_, idx) => {
           const person = players[idx];
@@ -222,23 +237,10 @@ const Room: React.FC = () => {
                 <span style={{
                   fontSize: 16, color: "#858bb2"
                 }}>{person.name}</span>
-                <button
-                  onClick={() => handleRemoveRobot(idx)}
-                  style={{
-                    marginTop: 2,
-                    background: "#f8eaea",
-                    border: "none",
-                    color: "#ea4866",
-                    borderRadius: "6px",
-                    padding: "0px 12px",
-                    fontSize: 14,
-                    cursor: "pointer"
-                  }}
-                >移除</button>
               </div>
             );
           } else {
-            // 空位，可添加机器人
+            // 空位
             return (
               <div
                 key={`slot-empty-${idx}`}
@@ -256,83 +258,147 @@ const Room: React.FC = () => {
                   fontSize: 36,
                   marginBottom: 2
                 }}>?</div>
-                <button
-                  onClick={handleAddRobot}
-                  style={{
-                    background: "#e2f3ea",
-                    color: "#33b282",
-                    border: "none",
-                    borderRadius: "18px",
-                    padding: "3px 20px",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                    fontSize: 14
-                  }}
-                  tabIndex={0}
-                >添加机器人</button>
               </div>
             );
           }
         })}
       </div>
+      {/* 机器人操作（添加/移除）按钮，统一放在准备按钮上方，左右并排 */}
+      <div
+        style={{
+          display: "flex",
+          gap: 20,
+          justifyContent: "center",
+          marginBottom: 18
+        }}
+      >
+        <button
+          onClick={handleAddRobot}
+          style={{
+            background: players.length < NUM_SLOTS ? "#e2f3ea" : "#efefef",
+            color: players.length < NUM_SLOTS ? "#33b282" : "#b1babd",
+            border: "none",
+            borderRadius: "18px",
+            padding: "7px 30px",
+            cursor: players.length < NUM_SLOTS ? "pointer" : "not-allowed",
+            fontWeight: 600,
+            fontSize: 15,
+            boxShadow: players.length < NUM_SLOTS ? "0 2px 9px 0 rgba(51,180,130,0.09)" : undefined,
+            opacity: players.length < NUM_SLOTS ? 1 : 0.7,
+            transition: "background 0.12s"
+          }}
+          tabIndex={0}
+          disabled={players.length >= NUM_SLOTS}
+        >添加机器人</button>
+        <button
+          onClick={() => handleRemoveRobot(players.length - 1)}
+          style={{
+            background: players.length > 0 ? "#f8eaea" : "#f4f4f4",
+            color: players.length > 0 ? "#ea4866" : "#c0bbc8",
+            border: "none",
+            borderRadius: "18px",
+            padding: "7px 30px",
+            cursor: players.length > 0 ? "pointer" : "not-allowed",
+            fontWeight: 600,
+            fontSize: 15,
+            boxShadow: players.length > 0 ? "0 2px 9px 0 rgba(234,72,102,0.09)" : undefined,
+            opacity: players.length > 0 ? 1 : 0.7,
+            transition: "background 0.12s"
+          }}
+          disabled={players.length === 0}
+        >移除机器人</button>
+      </div>
       {/* 准备按钮，可切换状态 */}
-      <div style={{
-        display: "flex",
-        justifyContent: "center",
-        marginBottom: 20
-      }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          marginBottom: 16,
+          gap: 0,
+          position: "relative"
+        }}
+      >
+        {/* 占左侧空间，使准备按钮居中 */}
+        <div style={{ flex: 1 }}></div>
+        {/* 准备按钮 - 居中 */}
         <button
           onClick={handleToggleReady}
           style={{
-            padding: "14px 80px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "9px 46px", // 微调让高度更接近大按钮
             border: "none",
-            borderRadius: "28px",
+            borderRadius: "20px",
             background: isReady ? "#c0edd4" : "#d5e2fa",
             color: isReady ? "#33b282" : "#5b7ccf",
             fontWeight: 700,
-            fontSize: "1.16rem",
+            fontSize: "1.05rem",
             cursor: "pointer",
             opacity: 1,
-            transition: "background 0.12s,color 0.12s"
+            transition: "background 0.12s,color 0.12s",
+            height: "40px",
+            lineHeight: "normal",
+            boxShadow: isReady ? "0 2px 10px 0 rgba(51,180,130,0.08)" : undefined,
+            minWidth: 110,
+            zIndex: 1
           }}
-        >{isReady ? '已准备' : '准备'}</button>
-      </div>
-      {/* 开始游戏 */}
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <button
-          onClick={handleStartGame}
-          disabled={!canStart || startLoading}
-          style={{
-            padding: "16px 80px",
-            border: "none",
-            borderRadius: "28px",
-            background: canStart ? "linear-gradient(90deg, #59daae 0%, #2fcd71 100%)" : "#e1f3e0",
-            color: canStart ? "#fff" : "#77b289",
-            fontWeight: 800,
-            fontSize: "1.22rem",
-            letterSpacing: 1.2,
-            cursor: canStart && !startLoading ? "pointer" : "not-allowed",
-            boxShadow: canStart ? "0 2px 14px 0 rgba(51,180,130,0.11)" : undefined,
-            transition: "background 0.2s",
-            opacity: startLoading ? 0.6 : 1
-          }}
-        >{startLoading ? '正在开始...' : '开始游戏'}</button>
-      </div>
-      {/* 错误提示 */}
-      {startError && (
-        <div style={{ color: "#dc6777", textAlign: "center", marginTop: 12, fontSize: 15 }}>
-          {startError}
+        >
+          {isReady ? '已准备' : '准备'}
+        </button>
+        {/* 开始游戏按钮 - 右侧放大醒目 */}
+        <div style={{ flex: 1, display: "flex", justifyContent: "flex-end"}}>
+          <button
+            onClick={handleStartGame}
+            disabled={!canStart || startLoading}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "none",
+              borderRadius: "26px",
+              background: canStart 
+                ? "linear-gradient(90deg,#48ec8d 0%, #06b45e 100%)" 
+                : "#f3f4f7",
+              color: canStart ? "#fff" : "#bcc9c5",
+              fontWeight: canStart ? 900 : 600,
+              fontSize: canStart ? "1.27rem" : "1.08rem",
+              letterSpacing: canStart ? 3 : 1,
+              cursor: canStart && !startLoading ? "pointer" : "not-allowed",
+              boxShadow: canStart 
+                ? "0 6px 26px 0 rgba(51,180,130,0.22),0 0.5px 2.5px 0 rgba(0,0,0,0.04)" 
+                : undefined,
+              borderStyle: canStart ? "none" : "dashed",
+              borderColor: canStart ? "transparent" : "#e1e7ef",
+              filter: canStart ? "none" : "blur(0px) grayscale(30%) brightness(0.98)",
+              transition: "all 0.23s cubic-bezier(.83,0,.17,1.02)",
+              opacity: startLoading ? 0.6 : (canStart ? 1 : 0.52),
+              height: "47px",
+              lineHeight: "normal",
+              minWidth: 150,
+              marginLeft: 34 // 让分隔更明显
+            }}
+          >
+            {startLoading ? '正在开始...' : '开始游戏'}
+          </button>
         </div>
-      )}
+      </div>
       {/* 游戏规则提醒 */}
       <div style={{
         color: "#8bb",
         fontSize: 15,
         textAlign: "center",
-        marginTop: 24
+        marginTop: 10
       }}>
-        至少加入3名机器人才能开始游戏。
+        需要 4-5 位玩家才能开始游戏。
       </div>
+      {/* 错误提示 */}
+      {startError && (
+        <div style={{ color: "#dc6777", textAlign: "center", fontSize: 15, marginTop: 8 }}>
+          {startError}
+        </div>
+      )}
     </section>
   );
 };
