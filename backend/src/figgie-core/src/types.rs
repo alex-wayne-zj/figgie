@@ -1,4 +1,4 @@
-pub type PlayerId = usize;
+pub type PlayerId = String;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Suit {
