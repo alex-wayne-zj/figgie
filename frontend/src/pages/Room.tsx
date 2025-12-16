@@ -74,8 +74,8 @@ const Room: React.FC = () => {
 
     // 构造请求数据
     const payload = {
-      roomName,
-      roomId,
+      room_name: roomName,
+      room_id: roomId,
       players: [
         { name: myUser.name, id: myUser.id },
         ...players.map(p => ({ name: p.name, id: p.id }))
@@ -87,9 +87,12 @@ const Room: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      console.log(payload)
+      console.log(resp)
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);
       }
+      console.log(JSON.stringify(payload))
       // 可根据 resp 处理返回内容。假定跳转即可
       navigate("/game", {
         state: {
