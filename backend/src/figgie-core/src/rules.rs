@@ -9,14 +9,14 @@ const MIN_QUOTE_PRICE: u32 = 1;
 fn player_suit_count(state: &GameState, player: PlayerId, suit: Suit) -> u8 {
     state.players
         .iter()
-        .find(|p| p.id == player)
+        .find(|p| p.info.id == player)
         .and_then(|p| p.hand.cards.get(&suit).copied())
         .unwrap_or(0)
 }
 
 pub fn is_action_legal(
     state: &GameState,
-    player: usize,
+    player: String,
     action: &Action,
 ) -> bool {
     match action {

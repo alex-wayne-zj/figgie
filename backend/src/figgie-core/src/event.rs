@@ -20,8 +20,6 @@ pub enum Event {
     RoundStarted {
         round_id: u8,
         server_time: u64,
-    },
-    DealCards {
         player: Player,
     },
     RoundEnded {

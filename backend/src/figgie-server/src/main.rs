@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 mod app;
+mod types;
 
 #[tokio::main]
 async fn main() {

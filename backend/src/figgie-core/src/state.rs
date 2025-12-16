@@ -9,8 +9,7 @@ pub struct Hand {
 
 #[derive(Clone, Debug)]
 pub struct Player {
-    pub id: PlayerId,
-    pub name: String,
+    pub info: Info,
     pub hand: Hand,
     pub cash: i32,
 }
@@ -19,4 +18,10 @@ pub struct Player {
 pub struct GameState {
     pub players: Vec<Player>,
     pub quotes: Vec<(PlayerId, Quote)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Info {
+    pub id: PlayerId,
+    pub name: String,
 }
