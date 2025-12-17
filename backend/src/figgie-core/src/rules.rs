@@ -34,7 +34,7 @@ pub fn is_action_legal(
 
             true
         }
-        Action::CancelAll => {
+        Action::Cancel => {
             // 允许任何玩家随时撤销自己的所有挂单
             true
         }

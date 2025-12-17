@@ -7,7 +7,7 @@ pub struct StartGameRequest {
     pub players: Vec<PlayerInfo>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct PlayerInfo {
     pub id: String,
     pub name: String,

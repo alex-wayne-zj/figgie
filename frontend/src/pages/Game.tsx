@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
+import { WS_BASE_URL } from "../config";
 
 /**
  * Figgie Trading Page
@@ -268,6 +268,41 @@ export default function FiggieTradingPage() {
     const current = base + delta;
     return { ...suitMeta, delta, current };
   });
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const room_id = payload.room_id;
+  const player_id = payload.players[0].id;
+
+  useEffect(() => {
+    const ws = new WebSocket(
+      `${WS_BASE_URL}/ws/${room_id}/${player_id}`
+    );
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("WS connected");
+    };
+
+    // ws.onmessage = (event) => {
+    //   const data = JSON.parse(event.data);
+    //   console.log("event from server:", data);
+    // };
+
+    // ws.send(JSON.stringify({
+    //   type: "PlaceBid",
+    //   suit: "Spade",
+    //   price: 120,
+    // }));
+
+    ws.onerror = (err) => {
+      console.error("WS error", err);
+    };
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [room_id, player_id]); 
 
   const handleEndGameClick = () => {
     setShowEndDialog(true);

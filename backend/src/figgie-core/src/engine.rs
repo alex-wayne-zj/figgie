@@ -1,5 +1,6 @@
 use crate::state::{GameState, Player, Info, Hand};
 use crate::types::{Suit};
+use crate::action::*;
 use std::collections::HashMap;
 use rand;
 use rand::seq::SliceRandom;
@@ -102,13 +103,9 @@ impl Game {
         }
     }
 
-    // 开始一局交易回合（进入Trading阶段，并记录结束时间戳）
-    // pub fn start_trading(&mut self) {
-    //     assert_eq!(self.phase, EnginePhase::Setup);
-    //     self.phase = EnginePhase::Trading;
-    //     // 这里可插入：self.state.trading_end_time = Some(now + 4分钟)
-    //     // (省略具体时间实现, 留接口)
-    // }
+    pub fn handle_action(&mut self, action: Action) {
+        
+    }
 
     // /// 交易时段，玩家行动
     // pub fn step(&mut self, player: PlayerId, action: Action) -> Result<(), String> {

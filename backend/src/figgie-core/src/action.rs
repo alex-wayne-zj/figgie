@@ -11,7 +11,8 @@ pub struct Quote {
 // Bot 可以选择执行 Action::NoOp
 #[derive(Clone, Debug)]
 pub enum Action {
+    Start,
     PlaceQuote(Quote),
-    CancelAll,
+    Cancel,
     NoOp,
 }
