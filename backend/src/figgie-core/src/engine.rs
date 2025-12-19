@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use rand;
 use rand::seq::SliceRandom;
 
+pub static CARD_VALUE_PER_GOAL_SUIT: i32 = 10;
+
 #[derive(Clone, Debug)]
 pub struct GameConfig {
     pub room_name: String,

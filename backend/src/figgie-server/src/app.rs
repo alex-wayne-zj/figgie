@@ -1,5 +1,6 @@
 use crate::types::*;
 use crate::dispatcher::*;
+use crate::robots::*;
 use figgie_core::*;
 use futures::channel::mpsc;
 use futures::{StreamExt, SinkExt};
@@ -67,9 +68,27 @@ async fn start_game(Json(req): Json<StartGameRequest>,) -> impl IntoResponse {
         let (participant, event_sender) = create_participant(player.id.clone(), dispatcher_sender.clone());
         dispatcher.register(player.id.clone(), event_sender);
         if player.id.starts_with("robot") {
-            println!("is robot")
+            println!("is robot");
+            let player_state = dispatcher
+                .game
+                .state
+                .players
+                .iter()
+                .find(|p| p.info.id == player.id)
+                .expect("robot player not found");
+
+            let hand = player_state.hand.clone();
+            let cash = player_state.cash;
+            let Participant {
+                player_id,
+                action_sender,
+                event_receiver,
+            } = participant;
+            tokio::spawn(async move {
+                robot_loop(player_id, hand, cash, event_receiver, action_sender).await;
+            });
         } else {
-            println!("is human")
+            println!("is human");
         }
     }
 

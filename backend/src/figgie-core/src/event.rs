@@ -10,8 +10,9 @@ pub enum Event {
         suit: Suit,
         price: u32,
     },
-    QuotesCanceled {
+    QuoteCanceled {
         player: PlayerId,
+        quote: Quote,
     },
     QuotePlaced {
         player: PlayerId,
