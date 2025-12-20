@@ -17,11 +17,23 @@ pub struct Player {
 #[derive(Clone, Debug)]
 pub struct GameState {
     pub players: Vec<Player>,
-    pub quotes: Vec<(PlayerId, Quote)>,
+    pub quotes: Vec<Quote>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Info {
     pub id: PlayerId,
     pub name: String,
+}
+
+use serde_json::{json, Map, Value};
+
+pub fn hand_to_json(hand: &Hand) -> Value {
+    let mut obj = Map::new();
+
+    for (suit, count) in &hand.cards {
+        obj.insert(suit.to_string(), json!(count));
+    }
+
+    Value::Object(obj)
 }

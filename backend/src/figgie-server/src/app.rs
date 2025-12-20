@@ -2,34 +2,55 @@ use crate::types::*;
 use crate::dispatcher::*;
 use crate::robots::*;
 use figgie_core::*;
-use futures::channel::mpsc;
 use futures::{StreamExt, SinkExt};
 use tokio::sync::mpsc::*;
+use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::time::Instant;
+use std::sync::Arc;
+use serde_json::Value;
 
 use axum::{
     routing::{get, post},
     response::IntoResponse,
     http::StatusCode,
-    extract::Path,
+    extract::{Path, State},
     extract::ws::{WebSocketUpgrade, Message},
     Router, Json
 };
 use serde_json::json;
 
+#[derive(Clone)]
+pub struct AppState {
+    pub dispatchers: Dispatchers,
+    pub human_participants: HumanParticipants,
+}
+
 pub fn create_app() -> Router {
+    let DISPATCHERS: Dispatchers = Arc::new(Mutex::new(Vec::new()));
+    let HUMAN_PARTICIPANTS: HumanParticipants = Arc::new(Mutex::new(Vec::new()));
+
     Router::new()
         .route("/", get(hello_figgie))
         .route("/start", post(start_game))
         .route("/ws/{room_id}/{player_id}", get(ws_connect))
+        .route("/start_new_round", post(start_new_round))
+        .route("/end_round", post(end_round))
+        .route("/end_game", post(end_game))
+        .with_state(AppState {
+            dispatchers: DISPATCHERS,
+            human_participants: HUMAN_PARTICIPANTS,
+        })
 }
 
 async fn hello_figgie() -> impl IntoResponse {
     (StatusCode::OK, [("content-type", "text/plain; charset=utf-8")], "Hello, Figgie!")
 }
 
-async fn start_game(Json(req): Json<StartGameRequest>,) -> impl IntoResponse {
+async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequest>,) -> impl IntoResponse {
+    let dispatchers = &state.dispatchers;
+    let human_participants = &state.human_participants;
+
     let player_num = req.players.len();
     if player_num != 4 && player_num != 5 {
         return (
@@ -89,8 +110,30 @@ async fn start_game(Json(req): Json<StartGameRequest>,) -> impl IntoResponse {
             });
         } else {
             println!("is human");
+            human_participants
+                .lock()
+                .await
+                .push(participant);
         }
     }
+
+    let dispatcher = Arc::new(Mutex::new(dispatcher));
+    dispatchers.lock().await.push(dispatcher.clone());
+
+    // 生成初始 RoundStarted events
+    {
+        let mut dispatcher_lock = dispatcher.lock().await;
+        let events = dispatcher_lock.game.start_new_round(1);
+        dispatcher_lock.handover_events(events).await;
+    }
+
+    tokio::spawn( {
+        let dispatcher = dispatcher.clone();
+        async move {
+            let mut dispatcher = dispatcher.lock().await; // ✅ 这里是 Future
+            dispatcher.run().await;
+        }
+    });
 
     (
         StatusCode::OK,
@@ -98,49 +141,115 @@ async fn start_game(Json(req): Json<StartGameRequest>,) -> impl IntoResponse {
     )
 }
 
+async fn start_new_round(State(state): State<AppState>, Json(req): Json<NewRoundRequest>) -> impl IntoResponse {
+    let dispatcher = {
+        let dispatchers = state.dispatchers.lock().await;
+        dispatchers
+            .iter()
+            .find(|d| d.blocking_lock().room_id == req.room_id)
+            .cloned()
+    };
+    if let Some(dispatcher) = dispatcher {
+        let mut dispatcher = dispatcher.lock().await;
+
+        let events = dispatcher.game.start_new_round(req.round_id);
+        dispatcher.handover_events(events).await;
+    }
+    StatusCode::OK
+}
+
+async fn end_round(State(state): State<AppState>, Json(req): Json<EndRoundRequest>) -> impl IntoResponse {
+    let dispatcher = {
+        let dispatchers = state.dispatchers.lock().await;
+        dispatchers
+            .iter()
+            .find(|d| d.blocking_lock().room_id == req.room_id)
+            .cloned()
+    };
+    if let Some(dispatcher) = dispatcher {
+        let mut dispatcher = dispatcher.lock().await;
+
+        let events = dispatcher.game.end_round();
+        dispatcher.handover_events(events).await;
+    }
+    StatusCode::OK
+}
+
+async fn end_game(State(state): State<AppState>, Json(req): Json<EndGameRequest>) -> impl IntoResponse {
+    let dispatcher = {
+        let dispatchers = state.dispatchers.lock().await;
+        dispatchers
+            .iter()
+            .find(|d| d.blocking_lock().room_id == req.room_id)
+            .cloned()
+    };
+    if let Some(dispatcher_arc) = dispatcher {
+        let mut dispatcher_lock = dispatcher_arc.lock().await;
+
+        let events = dispatcher_lock.game.end_game();
+        dispatcher_lock.handover_events(events).await;
+
+        // 清理全局状态
+        let player_ids: Vec<String> = dispatcher_lock.participants.keys().cloned().collect();
+
+        // 从 human_participants 中移除相关参与者
+        {
+            let mut humans = state.human_participants.lock().await;
+            humans.retain(|p| !player_ids.contains(&p.player_id));
+        }
+
+        // 从 dispatchers 中移除该 dispatcher
+        {
+            let mut dispatchers = state.dispatchers.lock().await;
+            dispatchers.retain(|d| !Arc::ptr_eq(d, &dispatcher_arc));
+        }
+    }
+    StatusCode::OK
+}
+
 async fn ws_connect(
+    State(state): State<AppState>,
     ws: WebSocketUpgrade,
     Path((room_id, player_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
+    let human_participants = state.human_participants.clone();
+    print!("{:?}", human_participants.clone());
+
     ws.on_upgrade(move | mut socket| async move {
         println!("room_id = {}, player_id = {}", room_id, player_id);
 
-        // while let Some(Ok(msg)) = socket.next().await {
-        //     match msg {
-        //         Message::Text(text) => {
-        //             println!("recv raw text: {}", text);
+        let participant = {
+            let mut vec = human_participants.lock().await;
+            let idx = vec.iter().position(|p| p.player_id == player_id)
+                .expect("participant not found");
+            vec.remove(idx) // 直接拿走，防止重复连接
+        };
 
-        //             // ① 解析 JSON
-        //             let action: ClientAction = match serde_json::from_str(&text) {
-        //                 Ok(v) => v,
-        //                 Err(e) => {
-        //                     eprintln!("json parse error: {}", e);
-        //                     continue;
-        //                 }
-        //             };
+        let mut event_rx = participant.event_receiver;
+        let action_tx = participant.action_sender;
 
-        //             println!("parsed action: {:?}", action);
+        let (mut ws_tx, mut ws_rx) = socket.split();
 
-        //             // ② 构造一个返回给前端的 JSON
-        //             let resp = serde_json::json!({
-        //                 "ok": true,
-        //                 "echo_action": action.action,
-        //                 "player_id": player_id,
-        //             });
+        // 2️⃣ event → websocket
+        let send_task = tokio::spawn(async move {
+            while let Some(event) = event_rx.recv().await {
+                let json: Value = event_to_json(&event);
+                let text = json.to_string();
+                let _ = ws_tx.send(Message::Text(text.into())).await;
+            }
+        });
 
-        //             // ③ 发回前端
-        //             let _ = socket
-        //                 .send(Message::Text(resp.to_string()))
-        //                 .await;
-        //         }
+        // 3️⃣ websocket → action
+        let recv_task = tokio::spawn(async move {
+            while let Some(Ok(Message::Text(text))) = ws_rx.next().await {
+                if let Ok(view) = serde_json::from_str::<ActionView>(&text) {
+                    if let Ok(action) = Action::try_from(view) {
+                        let _ = action_tx.send(action).await;
+                    }
+                }
+            }
+        });
 
-        //         Message::Close(_) => {
-        //             println!("client disconnected");
-        //             break;
-        //         }
-
-        //         _ => {}
-        //     }
-        // }
+        let _ = tokio::join!(send_task, recv_task);
     })
 }

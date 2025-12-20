@@ -154,6 +154,7 @@ pub async fn robot_loop(
     mut event_rx: Receiver<Event>,
     action_tx: Sender<Action>,
 ) {
+    println!("Robot loop starting...");
     let mut rng = SmallRng::from_entropy();
     let mut state = RobotState::new(player_id, hand, cash);
 
@@ -170,6 +171,7 @@ pub async fn robot_loop(
 
             _ = sleep_until(next_action_at) => {
                 let action = decide_action(&state, &mut rng);
+                println!("Robot send new action: {:?}", action);
                 let _ = action_tx.send(action).await;
 
                 next_action_at = Instant::now() + random_delay(&mut rng);
@@ -189,11 +191,15 @@ fn decide_action(state: &RobotState, rng: &mut impl Rng) -> Action {
         .filter(|(pid, _)| *pid != state.id)
         .collect();
 
+    let robot_id = state.id.clone();
+    
     // 2️⃣ 30% 概率去成交已有 quote
     if !hittable_quotes.is_empty() && rng.gen_bool(0.3) {
         let (_, quote) = hittable_quotes[rng.gen_range(0..hittable_quotes.len())];
+        
 
         let hit_quote = Quote {
+            player_id: robot_id.clone(),
             suit: quote.suit,
             side: match quote.side {
                 Side::Bid => Side::Offer,
@@ -206,6 +212,7 @@ fn decide_action(state: &RobotState, rng: &mut impl Rng) -> Action {
     }
 
     Action::PlaceQuote(Quote {
+        player_id: robot_id,
         suit: random_suit(),
         side: if rng.gen_bool(0.5) { Side::Bid } else { Side::Offer },
         price: rng.gen_range(3..=17),

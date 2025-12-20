@@ -20,10 +20,6 @@ pub fn is_action_legal(
     action: &Action,
 ) -> bool {
     match action {
-        Action::Start => {
-            // 允许任何玩家随时撤销自己的所有挂单
-            true
-        }
         Action::PlaceQuote(q) => {
             if q.price < MIN_QUOTE_PRICE || q.price > MAX_QUOTE_PRICE {
                 return false;
@@ -38,10 +34,10 @@ pub fn is_action_legal(
 
             true
         }
-        Action::Cancel => {
+        Action::CancelQuote(q) => {
             // 允许任何玩家随时撤销自己的所有挂单
             true
         }
-        Action::NoOp => true,
+        // Action::NoOp => true,
     }
 }

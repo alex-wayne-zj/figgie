@@ -1,8 +1,15 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc::*;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use figgie_core::*;
+use tokio::sync::Mutex;
+use std::sync::Arc;
+use log;
 
+pub type Dispatchers = Arc<Mutex<Vec<Arc<Mutex<Dispatcher>>>>>;
+pub type HumanParticipants = Arc<Mutex<Vec<Participant>>>;
+
+#[derive(Debug)]
 pub struct Participant {
     pub player_id: PlayerId,
     pub action_sender: Sender<Action>,
@@ -24,6 +31,7 @@ pub fn create_participant(
     (participant, event_sender)
 }
 
+
 pub struct Dispatcher {
     pub room_id: String,
     pub game: Game,
@@ -44,28 +52,40 @@ impl Dispatcher {
         self.last_activity = Instant::now();
     }
 
-    pub async fn run(mut self) {
+    pub async fn run(&mut self) {
         println!("Dispatcher for room {} started", self.room_id);
 
         while let Some(action) = self.receiver.recv().await {
             self.last_activity = Instant::now();
+            println!("Dispatcher receive the action: {:?}", action);
             let events = self.game.handle_action(action);
-            // self.handover_events(events).await;
+            self.handover_events(events).await;
         }
 
         println!("Dispatcher for room {} stopped", self.room_id);
     }
 
-    // async fn handover_events(&self, events: Vec<Event>) {
-    //     for event in events {
-    //         match event {
-    //             Event::ToPlayer { player_id, .. } => {
-    //                 self.send_to_player(player_id, event).await;
-    //             }
-    //             Event::Broadcast { .. } => {
-    //                 self.broadcast(event).await;
-    //             }
-    //         }
-    //     }
-    // }
+    pub async fn handover_events(&self, events: Vec<Event>) {
+        for event in events {
+            match event.target_player() {
+                // 🎯 定向发送
+                Some(player_id) => {
+                    if let Some(tx) = self.participants.get(player_id) {
+                        let _ = tx.send(event).await;
+                    } else {
+                        log::warn!(
+                            "target participant not found, room id: {}, player id: {}", self.room_id, player_id
+                        );
+                    }
+                }
+
+                // 📢 群发
+                None => {
+                    for tx in self.participants.values() {
+                        let _ = tx.send(event.clone()).await;
+                    }
+                }
+            }
+        }
+    }
 }
