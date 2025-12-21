@@ -85,8 +85,8 @@ pub fn event_to_json(event: &Event) -> Value {
         } => json!({
             "type": "RoundStarted",
             "payload": {
-                "roundId": round_id,
-                "serverTime": server_time,
+                "round_id": round_id,
+                "server_time": server_time,
                 "player": {
                     "info": {
                         "id": player.info.id.to_string(),
@@ -106,9 +106,9 @@ pub fn event_to_json(event: &Event) -> Value {
         } => json!({
             "type": "RoundEnded",
             "payload": {
-                "roundId": round_id,
-                "serverTime": server_time,
-                "goalSuit": goal_suit.to_string(),
+                "round_id": round_id,
+                "server_time": server_time,
+                "goal_suit": goal_suit.to_string(),
                 "players": players.iter().map(|player| {
                     json!({
                         "info": {

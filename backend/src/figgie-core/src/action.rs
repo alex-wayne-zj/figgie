@@ -12,9 +12,11 @@ pub struct Quote {
 // Bot 可以选择执行 Action::NoOp
 #[derive(Clone, Debug)]
 pub enum Action {
-    // Start,
+    StartRound(u32),
     PlaceQuote(Quote),
     CancelQuote(Quote),
+    EndRound,
+    EndGame
     // NoOp,
 }
 

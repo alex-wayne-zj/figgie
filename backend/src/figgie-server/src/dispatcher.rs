@@ -31,7 +31,7 @@ pub fn create_participant(
     (participant, event_sender)
 }
 
-
+#[derive(Debug)]
 pub struct Dispatcher {
     pub room_id: String,
     pub game: Game,
@@ -57,9 +57,14 @@ impl Dispatcher {
 
         while let Some(action) = self.receiver.recv().await {
             self.last_activity = Instant::now();
-            println!("Dispatcher receive the action: {:?}", action);
             let events = self.game.handle_action(action);
-            self.handover_events(events).await;
+            self.handover_events(events.clone()).await;
+            if !events.is_empty() {
+                match events[0] {
+                    Event::GameEnded{..} => break,
+                    _ => {},
+                }
+            }
         }
 
         println!("Dispatcher for room {} stopped", self.room_id);

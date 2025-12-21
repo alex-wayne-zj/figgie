@@ -4,7 +4,7 @@ const Home: React.FC = () => {
   return (
     <div style={{
       width: "100%",
-      minHeight: "88vh",
+      minHeight: "90vh",
       background: "linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%)",
       display: "flex",
       flexDirection: "column",
@@ -14,15 +14,14 @@ const Home: React.FC = () => {
       position: "relative",
       boxSizing: "border-box",
     }}>
-      {/* 顶部导航已展示头像与链接，这里去除重复的 Tab/头像 */}
       {/* 标题 */}
       <h1 style={{
         fontSize: "2.6rem",
         marginTop: 120,
-        marginBottom: 50,
+        marginBottom: "20vh",
         fontWeight: "700",
         color: "#284179"
-      }}>欢迎来到 Figgie 游戏</h1>
+      }}>Figgie Game</h1>
       {/* 创建房间按钮 */}
       <a
         href="/room"

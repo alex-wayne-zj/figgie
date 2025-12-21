@@ -1,4 +1,5 @@
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import Home from './pages/Home';
 import Game from './pages/Game';
 import Room from './pages/Room';
@@ -7,6 +8,7 @@ import './App.css';
 function App() {
   const location = useLocation();
   const hideTopbar = location.pathname.startsWith('/game');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
     <div className="layout">
@@ -36,6 +38,23 @@ function App() {
               <Link to="/" className="nav-link">如何游玩</Link>
               <Link to="/" className="nav-link">游戏设置</Link>
             </div>
+            <button
+              className="menu-toggle"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+            {isMenuOpen && (
+              <div className="mobile-menu">
+                <Link to="/" className="nav-link" onClick={() => setIsMenuOpen(false)}>成就榜单</Link>
+                <Link to="/" className="nav-link" onClick={() => setIsMenuOpen(false)}>历史对局</Link>
+                <Link to="/" className="nav-link" onClick={() => setIsMenuOpen(false)}>如何游玩</Link>
+                <Link to="/" className="nav-link" onClick={() => setIsMenuOpen(false)}>游戏设置</Link>
+              </div>
+            )}
           </nav>
         </header>
       )}

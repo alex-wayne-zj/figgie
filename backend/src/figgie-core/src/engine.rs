@@ -2,12 +2,13 @@ use crate::state::{GameState, Player, Info, Hand};
 use crate::types::*;
 use crate::action::*;
 use crate::event::*;
-use crate::rules::*;
 use std::collections::HashMap;
 use rand;
 use rand::seq::SliceRandom;
 
 pub static CARD_VALUE_PER_GOAL_SUIT: i32 = 10;
+const MAX_QUOTE_PRICE: u32 = 100;
+const MIN_QUOTE_PRICE: u32 = 1;
 
 #[derive(Clone, Debug)]
 pub struct GameConfig {
@@ -108,17 +109,23 @@ impl Game {
     }
 
     pub fn handle_action(&mut self, action: Action) -> Vec<Event> {
-        let player_id = match &action {
-            Action::PlaceQuote(q) => &q.player_id,
-            Action::CancelQuote(q) => &q.player_id,
-        };
-
-        if !is_action_legal(&self.state, player_id.to_string(), &action) {
-            return vec![];
-        }
-
         match action {
             Action::PlaceQuote(quote) => {
+
+                if quote.price < MIN_QUOTE_PRICE || quote.price > MAX_QUOTE_PRICE {
+                    return vec![];
+                }
+
+                if quote.side == Side::Offer {
+                    // 卖出时，保证手里有对应 suit 的牌即可
+                    if self.state.players
+                        .iter()
+                        .find(|p| p.info.id == quote.player_id)
+                        .and_then(|p| p.hand.cards.get(&quote.suit).copied())
+                        .unwrap_or(0) == 0 {
+                        return vec![];
+                    }
+                }
                 // 2️⃣ 尝试撮合
                 if let Some(idx) = find_matching_quote(&self.state.quotes, &quote) {
                     let matched = self.state.quotes.remove(idx);
@@ -188,6 +195,18 @@ impl Game {
                     player: quote.player_id.clone(),
                     quote,
                 }]
+            }
+
+            Action::StartRound(round_id) => {
+                self.start_new_round(round_id)
+            }
+
+            Action::EndRound => {
+                self.end_round()
+            }
+
+            Action::EndGame => {
+                self.end_game()
             }
         }
         

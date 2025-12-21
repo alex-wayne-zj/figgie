@@ -47,6 +47,19 @@ pub enum ActionView {
         side: String,
         price: u32,
     },
+    StartRound {
+        round_id: u32,
+        room_id: String,
+    },
+    EndRound {
+        round_id: u32,
+        room_id: String,
+    },
+    EndGame {
+        round_id: u32,
+        room_id: String,
+        player_id: String,
+    }
 }
 
 use std::convert::TryFrom;
@@ -78,6 +91,18 @@ impl TryFrom<ActionView> for Action {
                     side,
                     price,
                 }))
+            }
+
+            ActionView::EndGame { round_id, room_id, player_id } => {
+                Ok(Action::EndGame)
+            }
+
+            ActionView::EndRound { round_id, room_id } => {
+                Ok(Action::EndRound)
+            }
+
+            ActionView::StartRound { round_id, room_id } => {
+                Ok(Action::StartRound(round_id))
             }
         }
     }

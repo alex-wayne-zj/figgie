@@ -13,7 +13,9 @@ struct RobotState {
 }
 
 enum LoopControl {
+    Start,
     Continue,
+    Pause,
     Break,
 }
 
@@ -33,6 +35,7 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
         Event::TradeExecuted { buyer, seller, suit, price } => {
             if buyer == state.id {
                 *state.hand.cards.entry(suit).or_insert(0) += 1;
+                state.cash -= price as i32;
             }
 
             // 只是保险机制，正常来说前端和引擎会保证不会出现这样的交易
@@ -40,6 +43,7 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
                 let entry = state.hand.cards.entry(suit).or_insert(0);
                 if *entry > 0 {
                     *entry -= 1;
+                    state.cash += price as i32;
                 }
             }
             state.quotes.clear();
@@ -53,7 +57,7 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
             state.hand = player.hand;
             state.cash = player.cash;
             state.quotes.clear();
-            LoopControl::Continue
+            LoopControl::Start
         }
         Event::RoundEnded { round_id, players, server_time, goal_suit } => {
             let engine_player = players
@@ -111,12 +115,7 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
                         0
                     }
                 };
-
-                if winner_count > 1 {
-                    cash2 += bonus / winner_count;
-                } else {
-                    cash2 += bonus;
-                }
+                cash2 += bonus / winner_count;
             }
 
             // 6️⃣ 双重保险：对账 cash
@@ -131,7 +130,7 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
             state.cash = engine_player.cash;
             state.hand = engine_player.hand.clone();
             state.quotes.clear();
-            LoopControl::Continue
+            LoopControl::Pause
         }
         Event::QuoteCanceled { player , quote} => {
             state.quotes.retain(|(pid, q)| {
@@ -159,19 +158,26 @@ pub async fn robot_loop(
     let mut state = RobotState::new(player_id, hand, cash);
 
     let mut next_action_at = Instant::now() + random_delay(&mut rng);
+    let mut paused = false;
 
     loop {
         select! {
             Some(event) = event_rx.recv() => {
                 match apply_event(&mut state, event) {
-                    LoopControl::Continue => {}
+                    LoopControl::Continue => {},
+                    LoopControl::Pause => { paused = true },
+                    LoopControl::Start => { paused = false },
                     LoopControl::Break => break,
                 }
             }
 
             _ = sleep_until(next_action_at) => {
+                if paused {
+                    // 不发 action，但要重置下一次 wakeup
+                    next_action_at = Instant::now() + Duration::from_secs(5);
+                    continue;
+                }
                 let action = decide_action(&state, &mut rng);
-                println!("Robot send new action: {:?}", action);
                 let _ = action_tx.send(action).await;
 
                 next_action_at = Instant::now() + random_delay(&mut rng);

@@ -34,9 +34,6 @@ pub fn create_app() -> Router {
         .route("/", get(hello_figgie))
         .route("/start", post(start_game))
         .route("/ws/{room_id}/{player_id}", get(ws_connect))
-        .route("/start_new_round", post(start_new_round))
-        .route("/end_round", post(end_round))
-        .route("/end_game", post(end_game))
         .with_state(AppState {
             dispatchers: DISPATCHERS,
             human_participants: HUMAN_PARTICIPANTS,
@@ -141,72 +138,6 @@ async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequ
     )
 }
 
-async fn start_new_round(State(state): State<AppState>, Json(req): Json<NewRoundRequest>) -> impl IntoResponse {
-    let dispatcher = {
-        let dispatchers = state.dispatchers.lock().await;
-        dispatchers
-            .iter()
-            .find(|d| d.blocking_lock().room_id == req.room_id)
-            .cloned()
-    };
-    if let Some(dispatcher) = dispatcher {
-        let mut dispatcher = dispatcher.lock().await;
-
-        let events = dispatcher.game.start_new_round(req.round_id);
-        dispatcher.handover_events(events).await;
-    }
-    StatusCode::OK
-}
-
-async fn end_round(State(state): State<AppState>, Json(req): Json<EndRoundRequest>) -> impl IntoResponse {
-    let dispatcher = {
-        let dispatchers = state.dispatchers.lock().await;
-        dispatchers
-            .iter()
-            .find(|d| d.blocking_lock().room_id == req.room_id)
-            .cloned()
-    };
-    if let Some(dispatcher) = dispatcher {
-        let mut dispatcher = dispatcher.lock().await;
-
-        let events = dispatcher.game.end_round();
-        dispatcher.handover_events(events).await;
-    }
-    StatusCode::OK
-}
-
-async fn end_game(State(state): State<AppState>, Json(req): Json<EndGameRequest>) -> impl IntoResponse {
-    let dispatcher = {
-        let dispatchers = state.dispatchers.lock().await;
-        dispatchers
-            .iter()
-            .find(|d| d.blocking_lock().room_id == req.room_id)
-            .cloned()
-    };
-    if let Some(dispatcher_arc) = dispatcher {
-        let mut dispatcher_lock = dispatcher_arc.lock().await;
-
-        let events = dispatcher_lock.game.end_game();
-        dispatcher_lock.handover_events(events).await;
-
-        // 清理全局状态
-        let player_ids: Vec<String> = dispatcher_lock.participants.keys().cloned().collect();
-
-        // 从 human_participants 中移除相关参与者
-        {
-            let mut humans = state.human_participants.lock().await;
-            humans.retain(|p| !player_ids.contains(&p.player_id));
-        }
-
-        // 从 dispatchers 中移除该 dispatcher
-        {
-            let mut dispatchers = state.dispatchers.lock().await;
-            dispatchers.retain(|d| !Arc::ptr_eq(d, &dispatcher_arc));
-        }
-    }
-    StatusCode::OK
-}
-
 async fn ws_connect(
     State(state): State<AppState>,
     ws: WebSocketUpgrade,
@@ -220,6 +151,7 @@ async fn ws_connect(
 
         let participant = {
             let mut vec = human_participants.lock().await;
+            println!("{:?}", vec);
             let idx = vec.iter().position(|p| p.player_id == player_id)
                 .expect("participant not found");
             vec.remove(idx) // 直接拿走，防止重复连接
