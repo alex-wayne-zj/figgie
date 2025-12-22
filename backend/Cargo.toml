@@ -1,18 +1,18 @@
-[package]
-name = "backend"
-version = "0.1.0"
+[workspace]
+members = [
+    "src/figgie-server",
+    "src/figgie-core"
+]
+
+[workspace.package]
+version = "1.0.0"
 edition = "2024"
 
-[dependencies]
-axum = { version = "0.8", features = ["ws"] }
+[workspace.dependencies]
 tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["ws"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0" 
-figgie-core = { path = "src/figgie-core" }
-futures = "0.3"
+serde_json = "1.0"
 rand = { version = "0.8", features = ["small_rng"] }
+futures = "0.3"
 log = "0.4"
-
-[[bin]]
-name = "figgie-server"
-path = "src/figgie-server/src/main.rs"

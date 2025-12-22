@@ -1,7 +1,8 @@
-use crate::state::{GameState, Player, Info, Hand};
 use crate::types::*;
 use crate::action::*;
 use crate::event::*;
+use crate::utils::*;
+
 use std::collections::HashMap;
 use rand;
 use rand::seq::SliceRandom;
@@ -32,52 +33,6 @@ pub struct Game {
 
 impl Game {
     pub fn new(config: GameConfig) -> Self {
-
-        let suits = [Suit::Spade, Suit::Heart, Suit::Diamond, Suit::Club];
-        let mut rng = rand::thread_rng();
-
-        // 随机分配 suit 长度：哪两个10, 哪个8, 哪个12
-        let mut suit_types = vec![10u8, 10u8, 8u8, 12u8];
-        suit_types.shuffle(&mut rng);
-        let mut suit_card_counts = HashMap::new();
-        for (s, n) in suits.iter().zip(suit_types.iter()) {
-            suit_card_counts.insert(*s, *n);
-        }
-
-        // 找到12张的作为common
-        // let (&common_suit, _) = suit_card_counts.iter().find(|(_, &num)| num == 12).unwrap();
-        let common_suit = suit_card_counts
-            .iter()
-            .find(|(_, num)| **num == 12)
-            .map(|(suit, _)| *suit)
-            .unwrap();
-
-        // goal suit：与common同色的另一花色
-        fn is_red(s: Suit) -> bool {
-            matches!(s, Suit::Heart | Suit::Diamond)
-        }
-        fn is_black(s: Suit) -> bool {
-            matches!(s, Suit::Spade | Suit::Club)
-        }
-        let goal_suit = suits
-            .iter()
-            .filter(|&&s| {
-                s != common_suit &&
-                ((is_red(s) && is_red(common_suit)) || (is_black(s) && is_black(common_suit)))
-            })
-            .next()
-            .copied()
-            .unwrap();
-
-        // 构建40牌
-        let mut deck: Vec<Suit> = Vec::with_capacity(40);
-        for (suit, count) in &suit_card_counts {
-            for _ in 0..*count {
-                deck.push(*suit);
-            }
-        }
-        deck.shuffle(&mut rng);
-
         // 玩家初始化
         let num_players = config.players.len();
         let mut players: Vec<Player> = Vec::with_capacity(num_players);
@@ -89,18 +44,12 @@ impl Game {
             });
         }
 
-        // 发牌：把40张平均分配
-        for (i, suit) in deck.iter().enumerate() {
-            let pidx = i % num_players;
-            let player = &mut players[pidx];
-            *player.hand.cards.entry(*suit).or_insert(0) += 1;
-        }
-
         Game {
             round: 1,
             game_config: config,
-            common_suit: common_suit,
-            goal_suit: goal_suit,
+            // 这两个初始花色会被后续覆盖掉
+            common_suit: Suit::Heart,
+            goal_suit: Suit::Diamond,
             state: GameState {
                 players,
                 quotes: vec![]
@@ -111,94 +60,15 @@ impl Game {
     pub fn handle_action(&mut self, action: Action) -> Vec<Event> {
         match action {
             Action::PlaceQuote(quote) => {
-
-                if quote.price < MIN_QUOTE_PRICE || quote.price > MAX_QUOTE_PRICE {
-                    return vec![];
-                }
-
-                if quote.side == Side::Offer {
-                    // 卖出时，保证手里有对应 suit 的牌即可
-                    if self.state.players
-                        .iter()
-                        .find(|p| p.info.id == quote.player_id)
-                        .and_then(|p| p.hand.cards.get(&quote.suit).copied())
-                        .unwrap_or(0) == 0 {
-                        return vec![];
-                    }
-                }
-                // 2️⃣ 尝试撮合
-                if let Some(idx) = find_matching_quote(&self.state.quotes, &quote) {
-                    let matched = self.state.quotes.remove(idx);
-
-                    let (buyer, seller) = match quote.side {
-                        Side::Bid => (quote.player_id.clone(), matched.player_id.clone()),
-                        Side::Offer => (matched.player_id.clone(), quote.player_id.clone()),
-                    };
-
-                    self.apply_trade(&buyer, &seller, quote.suit, quote.price);
-
-                    return vec![Event::TradeExecuted {
-                        buyer,
-                        seller,
-                        suit: quote.suit,
-                        price: quote.price,
-                    }];
-                }
-
-                // 3️⃣ 没有撮合，检查是否替换现有 quote
-                let mut replaced = false;
-                self.state.quotes.retain(|q| {
-                    if q.suit == quote.suit && q.side == quote.side {
-                        let should_replace = match quote.side {
-                            Side::Bid => quote.price > q.price,
-                            Side::Offer => quote.price < q.price,
-                        };
-                        if should_replace {
-                            replaced = true;
-                            false // 移除旧的
-                        } else {
-                            true // 保留旧的
-                        }
-                    } else {
-                        true // 保留不冲突的
-                    }
-                });
-
-                if replaced || !self.state.quotes.iter().any(|q| q.suit == quote.suit && q.side == quote.side) {
-                    self.state.quotes.push(quote.clone());
-                    println!("Engine receive the action: {:?}", quote.clone());
-                    vec![Event::QuotePlaced {
-                        player: quote.player_id.clone(),
-                        quote,
-                    }]
-                } else {
-                    // 没有添加或替换，不返回事件
-                    vec![]
-                }
+                self.place_quote(quote)
             }
 
             Action::CancelQuote(quote) => {
-                let before = self.state.quotes.len();
-
-                self.state.quotes.retain(|q| {
-                    !(q.player_id == quote.player_id &&
-                      q.suit == quote.suit &&
-                      q.side == quote.side &&
-                      q.price == quote.price)
-                });
-
-                if self.state.quotes.len() == before {
-                    return vec![];
-                }
-
-                vec![Event::QuoteCanceled {
-                    player: quote.player_id.clone(),
-                    quote,
-                }]
+                self.cancel_quote(quote)
             }
 
             Action::StartRound(round_id) => {
-                self.start_new_round(round_id)
+                self.start_round(round_id)
             }
 
             Action::EndRound => {
@@ -209,13 +79,78 @@ impl Game {
                 self.end_game()
             }
         }
-        
+    }
+
+    pub fn place_quote(&mut self, quote: Quote) -> Vec<Event> {
+        if quote.price < MIN_QUOTE_PRICE || quote.price > MAX_QUOTE_PRICE {
+            return vec![];
+        }
+
+        if quote.side == Side::Offer {
+            // 卖出时，保证手里有对应 suit 的牌即可
+            if self.state.players
+                .iter()
+                .find(|p| p.info.id == quote.player_id)
+                .and_then(|p| p.hand.cards.get(&quote.suit).copied())
+                .unwrap_or(0) == 0 {
+                return vec![];
+            }
+        }
+        // 2️⃣ 尝试撮合
+        if let Some(idx) = find_matching_quote_idx(&self.state.quotes, &quote) {
+            let matched = self.state.quotes.remove(idx);
+
+            let (buyer, seller) = match quote.side {
+                Side::Bid => (quote.player_id.clone(), matched.player_id.clone()),
+                Side::Offer => (matched.player_id.clone(), quote.player_id.clone()),
+            };
+
+            self.apply_trade(&buyer, &seller, quote.suit, quote.price);
+
+            return vec![Event::TradeExecuted {
+                buyer,
+                seller,
+                suit: quote.suit,
+                price: quote.price,
+            }];
+        }
+
+        // 3️⃣ 没有撮合，检查是否替换现有 quote
+        let mut replaced = false;
+        self.state.quotes.retain(|q| {
+            if q.suit == quote.suit && q.side == quote.side {
+                let should_replace = match quote.side {
+                    Side::Bid => quote.price > q.price,
+                    Side::Offer => quote.price < q.price,
+                };
+                if should_replace {
+                    replaced = true;
+                    false // 移除旧的
+                } else {
+                    true // 保留旧的
+                }
+            } else {
+                true // 保留不冲突的
+            }
+        });
+
+        if replaced || !self.state.quotes.iter().any(|q| q.suit == quote.suit && q.side == quote.side) {
+            self.state.quotes.push(quote.clone());
+            println!("Engine receive the action: {:?}", quote.clone());
+            vec![Event::QuotePlaced {
+                player: quote.player_id.clone(),
+                quote,
+            }]
+        } else {
+            // 没有添加或替换，不返回事件
+            vec![]
+        }
     }
 
     fn apply_trade(
         &mut self,
-        buyer_id: &PlayerId,
-        seller_id: &PlayerId,
+        buyer_id: &String,
+        seller_id: &String,
         suit: Suit,
         price: u32,
     ) {
@@ -234,7 +169,27 @@ impl Game {
         }
     }
 
-    pub fn start_new_round(&mut self, round: u32) -> Vec<Event> {
+    pub fn cancel_quote(&mut self, quote: Quote) -> Vec<Event> {
+        let before = self.state.quotes.len();
+
+        self.state.quotes.retain(|q| {
+            !(q.player_id == quote.player_id &&
+                q.suit == quote.suit &&
+                q.side == quote.side &&
+                q.price == quote.price)
+        });
+
+        if self.state.quotes.len() == before {
+            return vec![];
+        }
+
+        vec![Event::QuoteCanceled {
+            player: quote.player_id.clone(),
+            quote,
+        }]
+    }
+
+    pub fn start_round(&mut self, round: u32) -> Vec<Event> {
         self.round = round;
 
         // 重新生成 common_suit 和 goal_suit
@@ -321,7 +276,7 @@ impl Game {
         let pot = self.game_config.pot as i32; // 转换为 i32 以匹配 cash
 
         // 计算每个玩家的 goal_suit 数量
-        let mut player_goal_counts: HashMap<PlayerId, u8> = HashMap::new();
+        let mut player_goal_counts: HashMap<String, u8> = HashMap::new();
         for player in &self.state.players {
             let count = player.hand.cards.get(&goal).copied().unwrap_or(0);
             player_goal_counts.insert(player.info.id.clone(), count);
@@ -341,7 +296,7 @@ impl Game {
 
         // 找到拥有最多 goal_suit 的玩家
         let max_goal = player_goal_counts.values().copied().max().unwrap_or(0);
-        let winners: Vec<PlayerId> = player_goal_counts.iter()
+        let winners: Vec<String> = player_goal_counts.iter()
             .filter(|(_, cnt)| **cnt == max_goal && max_goal > 0)
             .map(|(pid, _)| pid.clone())
             .collect();

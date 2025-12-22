@@ -6,9 +6,9 @@ use tokio::sync::mpsc::*;
 use log;
 
 struct RobotState {
-    id: PlayerId,
+    id: String,
     hand: Hand,
-    quotes: Vec<(PlayerId, Quote)>,
+    quotes: Vec<(String, Quote)>,
     cash: i32,
 }
 
@@ -20,7 +20,7 @@ enum LoopControl {
 }
 
 impl RobotState {
-    pub fn new(id: PlayerId, hand: Hand, cash: i32) -> Self {
+    pub fn new(id: String, hand: Hand, cash: i32) -> Self {
         Self {
             id,
             hand,
@@ -147,7 +147,7 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
 }
 
 pub async fn robot_loop(
-    player_id: PlayerId,
+    player_id: String,
     hand: Hand,
     cash: i32,
     mut event_rx: Receiver<Event>,
@@ -191,7 +191,7 @@ fn random_delay(rng: &mut impl Rng) -> Duration {
 }
 
 fn decide_action(state: &RobotState, rng: &mut impl Rng) -> Action {
-    let hittable_quotes: Vec<&(PlayerId, Quote)> = state
+    let hittable_quotes: Vec<&(String, Quote)> = state
         .quotes
         .iter()
         .filter(|(pid, _)| *pid != state.id)

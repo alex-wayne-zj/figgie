@@ -64,20 +64,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "backend"
-version = "0.1.0"
-dependencies = [
- "axum",
- "figgie-core",
- "futures",
- "log",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -147,11 +133,23 @@ dependencies = [
 
 [[package]]
 name = "figgie-core"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
+ "rand 0.8.5",
+]
+
+[[package]]
+name = "figgie-server"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "figgie-core",
+ "futures",
+ "log",
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

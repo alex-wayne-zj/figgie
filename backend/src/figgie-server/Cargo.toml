@@ -1,0 +1,17 @@
+[package]
+name = "figgie-server"
+edition = "2024"
+
+[[bin]]
+name = "figgie-server"
+path = "src/main.rs"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+futures = { workspace = true }
+log = { workspace = true }
+figgie-core = { path = "../figgie-core" }

@@ -11,13 +11,13 @@ pub type HumanParticipants = Arc<Mutex<Vec<Participant>>>;
 
 #[derive(Debug)]
 pub struct Participant {
-    pub player_id: PlayerId,
+    pub player_id: String,
     pub action_sender: Sender<Action>,
     pub event_receiver: Receiver<Event>,
 }
 
 pub fn create_participant(
-    player_id: PlayerId,
+    player_id: String,
     dispatcher_sender: Sender<Action>,
 ) -> (Participant, Sender<Event>) {
     let (event_sender, event_receiver) = channel(32);
@@ -38,14 +38,14 @@ pub struct Dispatcher {
     // dispatcher 接收所有参与者发来的 action
     pub receiver: Receiver<Action>,
     // dispatcher 给每个参与者发 event
-    pub participants: HashMap<PlayerId, Sender<Event>>,
+    pub participants: HashMap<String, Sender<Event>>,
     pub last_activity: Instant,
 }
 
 impl Dispatcher {
     pub fn register(
         &mut self,
-        player_id: PlayerId,
+        player_id: String,
         event_sender: Sender<Event>,
     ) {
         self.participants.insert(player_id, event_sender);

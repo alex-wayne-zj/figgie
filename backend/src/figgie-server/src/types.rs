@@ -15,24 +15,6 @@ pub struct PlayerInfo {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct NewRoundRequest {
-    pub round_id: u32,
-    pub room_id: String
-}
-
-#[derive(Debug, Deserialize)]
-pub struct EndRoundRequest {
-    pub room_id: String
-}
-
-#[derive(Debug, Deserialize)]
-pub struct EndGameRequest {
-    pub room_id: String,
-    pub player_id: String
-}
-
-
-#[derive(Debug, Deserialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum ActionView {
     PlaceQuote {

@@ -4,6 +4,7 @@ mod app;
 mod types;
 mod dispatcher;
 mod robots;
+mod adapter;
 
 #[tokio::main]
 async fn main() {

@@ -1,33 +1,59 @@
-# figgie
+# Figgie
 
 A full-stack reimplementation of Jane Street’s Figgie trading game using React and Rust.
 
-[rules](https://www.figgie.com/how-to-play.html)
+[Figgie Game Rules](https://www.figgie.com/how-to-play.html)
+
+## Architecture Design
+
+TBD
+
+## API Documentation
+
+TBD
 
 ## Developer Logs
 
-[x] React Frontend & Rust Backend Framework
+[x] React frontend & rust backend  project framework
 
-[x] Home Page and Room Page (Suport only PVE for now)
+[x] Home page and room page (Suport only PVE for this prototype)
 
-[x] Game Page UI (Trade History ignored in prototype version)
+[x] Game page UI
 
-[ ] Key communication logic
+[x] Key WebSocket communication logic (**A lot of coding and debugging here**)
 
-[ ] Figgie Game Engine
+[x] Figgie game core behavior
 
-[ ] Random Robot behavior
+[x] Random robot behavior
+
+[x] Phone media adaptation
+
+[x] Runnable prototype v1.0
+
+[] Write relevant documentation (including Lark!)
+
+[] Refactor frontend and learn react
+
+[] Refactor backend and learn rust
 
 ## Future Features
 
 [ ] Smarter Robot with Strategies
 
-[ ] Trade History
-
 [ ] Authentication System (Name, Avatar, Emails)
 
 [ ] People vs. People System
 
-[ ] Statistics Analysis and History Games
+[ ] History Games and Statistics Analysis (with durable data in the dataset)
 
-[ ] Sound Effect
+[ ] Sound Effect and GUI Optimization
+
+[ ] Online test
+
+## I Gotta Say...
+
+Cursor is really convenient. Unfortunately I have only limited access.
+
+AI safe you from the fear when facing unfamiliar programming language, framework and SDK.
+
+But it does require a higher capability to design the software architecture, modulization and ask the right question with clear context.

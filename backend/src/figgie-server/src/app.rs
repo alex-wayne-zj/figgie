@@ -1,6 +1,7 @@
 use crate::types::*;
 use crate::dispatcher::*;
 use crate::robots::*;
+use crate::adapter::*;
 use figgie_core::*;
 use futures::{StreamExt, SinkExt};
 use tokio::sync::mpsc::*;
@@ -120,7 +121,7 @@ async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequ
     // 生成初始 RoundStarted events
     {
         let mut dispatcher_lock = dispatcher.lock().await;
-        let events = dispatcher_lock.game.start_new_round(1);
+        let events = dispatcher_lock.game.start_round(1);
         dispatcher_lock.handover_events(events).await;
     }
 
