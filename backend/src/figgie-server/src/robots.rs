@@ -5,10 +5,17 @@ use figgie_core::*;
 use tokio::sync::mpsc::*;
 use log;
 
+const PAUSE_SECONDS: u64 = 3;
+const RANDOM_DELAY_LOWER_BOUND: u64 = 2;
+const RANDOM_DELAY_UPPER_BOUND: u64 = 8;
+const EXECUTE_QUOTE_POSSIBILITY: f64 = 0.2;
+const RANDOM_PRICE_LOWER_BOUND: u32 = 3;
+const RANDOM_PRICE_UPPER_BOUND: u32 = 18;
+
 struct RobotState {
     id: String,
     hand: Hand,
-    quotes: Vec<(String, Quote)>,
+    quotes: Vec<Quote>,
     cash: i32,
 }
 
@@ -49,8 +56,8 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
             state.quotes.clear();
             LoopControl::Continue
         }
-        Event::QuotePlaced { player, quote } => {
-            state.quotes.push((player, quote));
+        Event::QuotePlaced { quote } => {
+            state.quotes.push(quote);
             LoopControl::Continue
         }
         Event::RoundStarted { round_id, server_time, player } => {
@@ -76,7 +83,7 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
                 );
             }
 
-            // 反向检查：本地有但引擎没有的花色
+            // 反向检查：本地有但引擎没有的花色，一般来说不存在这种情况
             for (suit, count) in &state.hand.cards {
                 let engine = engine_player.hand.cards.get(suit).copied().unwrap_or(0);
                 assert!(
@@ -118,7 +125,6 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
                 cash2 += bonus / winner_count;
             }
 
-            // 6️⃣ 双重保险：对账 cash
             assert!(
                 cash2 == engine_player.cash,
                 "cash mismatch: local_calc={}, engine={}",
@@ -126,15 +132,14 @@ fn apply_event(state: &mut RobotState, event: Event) -> LoopControl {
                 engine_player.cash
             );
 
-            // 7️⃣ 同步状态 & 清空 quotes
             state.cash = engine_player.cash;
             state.hand = engine_player.hand.clone();
             state.quotes.clear();
             LoopControl::Pause
         }
-        Event::QuoteCanceled { player , quote} => {
-            state.quotes.retain(|(pid, q)| {
-                !(*pid == player && q.suit == quote.suit && q.side == quote.side && q.price == quote.price)
+        Event::QuoteCanceled { quote} => {
+            state.quotes.retain(|q| {
+                !(q.player_id == quote.player_id && q.suit == quote.suit && q.side == quote.side && q.price == quote.price)
             });
             LoopControl::Continue
         }
@@ -156,7 +161,6 @@ pub async fn robot_loop(
     println!("Robot loop starting...");
     let mut rng = SmallRng::from_entropy();
     let mut state = RobotState::new(player_id, hand, cash);
-
     let mut next_action_at = Instant::now() + random_delay(&mut rng);
     let mut paused = false;
 
@@ -174,7 +178,7 @@ pub async fn robot_loop(
             _ = sleep_until(next_action_at) => {
                 if paused {
                     // 不发 action，但要重置下一次 wakeup
-                    next_action_at = Instant::now() + Duration::from_secs(5);
+                    next_action_at = Instant::now() + Duration::from_secs(PAUSE_SECONDS);
                     continue;
                 }
                 let action = decide_action(&state, &mut rng);
@@ -184,25 +188,26 @@ pub async fn robot_loop(
             }
         }
     }
+
+    println!("Robot loop ended...");
 }
 
 fn random_delay(rng: &mut impl Rng) -> Duration {
-    Duration::from_secs(rng.gen_range(3..=8))
+    Duration::from_secs(rng.gen_range(RANDOM_DELAY_LOWER_BOUND..=RANDOM_DELAY_UPPER_BOUND))
 }
 
 fn decide_action(state: &RobotState, rng: &mut impl Rng) -> Action {
-    let hittable_quotes: Vec<&(String, Quote)> = state
+    let hittable_quotes: Vec<&Quote> = state
         .quotes
         .iter()
-        .filter(|(pid, _)| *pid != state.id)
+        .filter(|q| *q.player_id != state.id)
         .collect();
 
     let robot_id = state.id.clone();
     
-    // 2️⃣ 30% 概率去成交已有 quote
-    if !hittable_quotes.is_empty() && rng.gen_bool(0.3) {
-        let (_, quote) = hittable_quotes[rng.gen_range(0..hittable_quotes.len())];
-        
+    // 按概率去成交已有 quote
+    if !hittable_quotes.is_empty() && rng.gen_bool(EXECUTE_QUOTE_POSSIBILITY) {
+        let quote = hittable_quotes[rng.gen_range(0..hittable_quotes.len())];
 
         let hit_quote = Quote {
             player_id: robot_id.clone(),
@@ -221,7 +226,7 @@ fn decide_action(state: &RobotState, rng: &mut impl Rng) -> Action {
         player_id: robot_id,
         suit: random_suit(),
         side: if rng.gen_bool(0.5) { Side::Bid } else { Side::Offer },
-        price: rng.gen_range(3..=17),
+        price: rng.gen_range(RANDOM_PRICE_LOWER_BOUND..=RANDOM_PRICE_UPPER_BOUND),
     })
 }
 

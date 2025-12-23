@@ -1,13 +1,6 @@
 use serde::Deserialize;
 use figgie_core::{Action, Quote, Suit, Side};
 
-#[derive(Debug, Deserialize)]
-pub struct StartGameRequest {
-    pub room_name: String,
-    pub room_id: String,
-    pub players: Vec<PlayerInfo>,
-}
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct PlayerInfo {
     pub id: String,
@@ -15,16 +8,23 @@ pub struct PlayerInfo {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct StartGameRequest {
+    pub room_name: String,
+    pub room_id: String,
+    pub players: Vec<PlayerInfo>,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum ActionView {
     PlaceQuote {
-        id: String,
+        player_id: String,
         suit: String,
         side: String,
         price: u32,
     },
     CancelQuote {
-        id: String,
+        player_id: String,
         suit: String,
         side: String,
         price: u32,
@@ -51,24 +51,24 @@ impl TryFrom<ActionView> for Action {
 
     fn try_from(view: ActionView) -> Result<Self, Self::Error> {
         match view {
-            ActionView::PlaceQuote { id, suit, side, price } => {
+            ActionView::PlaceQuote { player_id, suit, side, price } => {
                 let suit = Suit::from_str(&suit)?;
                 let side = Side::from_str(&side)?;
 
                 Ok(Action::PlaceQuote(Quote {
-                    player_id: id,
+                    player_id: player_id,
                     suit,
                     side,
                     price,
                 }))
             }
 
-            ActionView::CancelQuote { id, suit, side, price } => {
+            ActionView::CancelQuote { player_id, suit, side, price } => {
                 let suit = Suit::from_str(&suit)?;
                 let side = Side::from_str(&side)?;
 
                 Ok(Action::CancelQuote(Quote {
-                    player_id: id,
+                    player_id: player_id,
                     suit,
                     side,
                     price,

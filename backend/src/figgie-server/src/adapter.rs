@@ -28,11 +28,11 @@ pub fn event_to_json(event: &Event) -> Value {
             }
         }),
 
-        Event::QuoteCanceled{player, quote} => json!({
+        Event::QuoteCanceled{quote} => json!({
             "type": "QuoteCanceled",
             "payload": {
-                "player": player.to_string(),
                 "quote": {
+                    "player_id": quote.player_id.to_string(),
                     "suit": quote.suit.to_string(),
                     "side": quote.side.to_string(),
                     "price": quote.price,
@@ -40,11 +40,11 @@ pub fn event_to_json(event: &Event) -> Value {
             }
         }),
 
-        Event::QuotePlaced { player, quote } => json!({
+        Event::QuotePlaced {quote } => json!({
             "type": "QuotePlaced",
             "payload": {
-                "player": player.to_string(),
                 "quote": {
+                    "player_id": quote.player_id.to_string(),
                     "suit": quote.suit.to_string(),
                     "side": quote.side.to_string(),
                     "price": quote.price

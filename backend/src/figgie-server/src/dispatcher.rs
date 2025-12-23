@@ -1,10 +1,9 @@
 use std::collections::HashMap;
-use tokio::sync::mpsc::*;
-use std::time::Instant;
-use figgie_core::*;
-use tokio::sync::Mutex;
 use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::{mpsc::*, Mutex};
 use log;
+use figgie_core::{Game, Action, Event};
 
 pub type Dispatchers = Arc<Mutex<Vec<Arc<Mutex<Dispatcher>>>>>;
 pub type HumanParticipants = Arc<Mutex<Vec<Participant>>>;

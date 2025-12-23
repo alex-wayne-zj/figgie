@@ -17,7 +17,7 @@ import "./Game.css";
 
 // 柔和、低饱和度的配色，便于区分且不刺眼
 const PLAYER_COLORS = ["#7293e6", "#75c9a3", "#e9c17d", "#c8a5e6", "#ee9fa7"];
-const GAME_TIME = 10
+const GAME_TIME = 240;
 
 // 倒计时组件，接收一个 UNIX 时间戳作为起始，4分钟倒计时
 function CountdownBox({
@@ -46,7 +46,7 @@ function CountdownBox({
       // 剩余秒数
       const left = Math.max(0, GAME_TIME - (now - startTimestamp));
       setSecondsLeft(left);
-      if (left <= 0  && !hasEndedRef.current) {
+      if (left <= 0 && !hasEndedRef.current) {
         hasEndedRef.current = true;
 
         if (intervalRef.current) {
@@ -56,16 +56,16 @@ function CountdownBox({
         endRoundRef.current?.();
       }
     }
+
     if (intervalRef.current !== null) {
       clearInterval(intervalRef.current);
     }
-
     intervalRef.current = window.setInterval(update, 1000);
     update();
+
     return () => {
-      if (intervalRef.current !== null)
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (intervalRef.current !== null) clearInterval(intervalRef.current);
+      intervalRef.current = null;
     };
   }, [startTimestamp]);
 
@@ -81,22 +81,28 @@ function CountdownBox({
 
 export default function FiggieTradingPage() {
   // 假设传入 unix startTimestamp，演示初始为页面打开那刻
-  const [startTimestamp, setStartTimeStamp] = useState(() => Math.floor(Date.now() / 1000));
+  const [startTimestamp, setStartTimeStamp] = useState(() =>
+    Math.floor(Date.now() / 1000)
+  );
   const [round, setRound] = useState(1);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [showRoundEndDialog, setShowRoundEndDialog] = useState(false);
   const [goalSuit, setGoalSuit] = useState("♥");
+  const [roundEndedPlayerStates, setRoundEndedPlayerStates] = useState<
+    RoundEndedPlayerState[]
+  >([]);
+  const [tradeHistory, setTradeHistory] = useState<TradeExecutedPayload[]>([]);
 
   const navigate = useNavigate();
   const { state } = useLocation();
 
   const payload = state?.payload;
-
   if (!payload) {
     return <div>非法进入 game 页面</div>;
   }
-
   const playersCount = payload.players.length;
+  const room_id = payload.room_id;
+  const player_id = payload.players[0].id;
 
   const playerIdNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -132,11 +138,18 @@ export default function FiggieTradingPage() {
     }))
   );
 
-  const [roundEndedPlayerStates, setRoundEndedPlayerStates] = useState<
-    RoundEndedPlayerState[]
-  >([]);
+  const playerColorMap = new Map(playerStates.map((p) => [p.id, p.color]));
 
-  const [tradeHistory, setTradeHistory] = useState<TradeExecutedPayload[]>([]);
+  function getPlayerColor(playerId: string | undefined): string {
+    if (playerId === undefined) {
+      return "red";
+    }
+    const color = playerColorMap.get(playerId);
+    if (color === undefined) {
+      return "red";
+    }
+    return color;
+  }
 
   // 当前用户在 playerStates 中视为第一个
   const selfState = playerStates[0];
@@ -164,14 +177,12 @@ export default function FiggieTradingPage() {
   });
 
   const wsRef = useRef<WebSocket | null>(null);
-  const room_id = payload.room_id;
-  const player_id = payload.players[0].id;
 
   const placeQuote = (suit: Suit, side: Side, price: number) => {
     const action: Action = {
       type: "PlaceQuote",
       payload: {
-        id: player_id,
+        player_id: player_id,
         suit,
         side,
         price,
@@ -242,8 +253,8 @@ export default function FiggieTradingPage() {
           setTradeHistory((prev) => [...prev, newTrade]);
         }
         if (data.type === "QuotePlaced") {
-          const { player, quote } = data.payload;
-          const { suit, side, price } = quote;
+          const { quote } = data.payload;
+          const { player_id, suit, side, price } = quote;
           setSuitPrices((prev) => {
             const prevSuit = prev[suit];
             return {
@@ -251,9 +262,12 @@ export default function FiggieTradingPage() {
               [suit]: {
                 ...prevSuit,
                 ...(side === "Bid"
-                  ? { buyer: getPlayerNameById(player) ?? player, bid: price }
+                  ? {
+                      buyer: getPlayerNameById(player_id) ?? player_id,
+                      bid: price,
+                    }
                   : {
-                      seller: getPlayerNameById(player) ?? player,
+                      seller: getPlayerNameById(player_id) ?? player_id,
                       ask: price,
                     }),
               },
@@ -308,12 +322,6 @@ export default function FiggieTradingPage() {
       }
     };
 
-    // ws.send(JSON.stringify({
-    //   type: "PlaceBid",
-    //   suit: "Spade",
-    //   price: 120,
-    // }));
-
     ws.onerror = (err) => {
       console.error("WS error", err);
     };
@@ -355,16 +363,16 @@ export default function FiggieTradingPage() {
     if (wsRef.current) {
       wsRef.current.send(JSON.stringify(action));
       setShowRoundEndDialog(false);
-      setStartTimeStamp(() => Math.floor(Date.now() / 1000))
-      setPlayerStates(prev =>
-        prev.map(p => ({
+      setStartTimeStamp(() => Math.floor(Date.now() / 1000));
+      setPlayerStates((prev) =>
+        prev.map((p) => ({
           ...p,
           totalCards: playersCount === 4 ? 10 : 8,
           suitDeltas: [0, 0, 0, 0],
           // cash 不动，自动保留
         }))
       );
-      setTradeHistory([])
+      setTradeHistory([]);
     }
   };
 
@@ -382,7 +390,7 @@ export default function FiggieTradingPage() {
       payload: {
         room_id: room_id,
         round_id: round,
-        player_id: selfState.id
+        player_id: selfState.id,
       },
     };
     if (wsRef.current) {
@@ -702,14 +710,23 @@ export default function FiggieTradingPage() {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 10,
                       justifyContent: "center", // 水平居中
                       flex: 1,
                       width: "100%",
                     }}
                   >
                     {priceLine.buyer ? (
-                      <span style={{ fontSize: 13, color: "#1f2a44" }}>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          color: "#1f2a44",
+                          padding: "3px",
+                          borderRadius: "4px",
+                          background: getPlayerColor(
+                            getPlayerIdByName(priceLine.buyer)
+                          ),
+                        }}
+                      >
                         <span style={{ fontSize: 14, fontWeight: 800 }}>
                           ¥{priceLine.bid}
                         </span>{" "}
@@ -827,7 +844,17 @@ export default function FiggieTradingPage() {
                     }}
                   >
                     {priceLine.seller ? (
-                      <span style={{ fontSize: 13, color: "#1f2a44" }}>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          color: "#1f2a44",
+                          padding: "3px",
+                          borderRadius: "4px",
+                          background: getPlayerColor(
+                            getPlayerIdByName(priceLine.seller)
+                          ),
+                        }}
+                      >
                         <span style={{ fontSize: 14, fontWeight: 800 }}>
                           ¥{priceLine.ask}
                         </span>{" "}
@@ -920,7 +947,7 @@ export default function FiggieTradingPage() {
                     {suitToSymbol(trade.suit)}
                   </td>
                   <td>{trade.seller}</td>
-                  <td>{trade.price}</td>
+                  <td>¥{trade.price}</td>
                 </tr>
               ))}
             </tbody>
@@ -1027,7 +1054,7 @@ export default function FiggieTradingPage() {
                       }}
                     >
                       <span>{p.name}</span>
-                      <span>{p.cash}</span>
+                      <span>¥{p.cash}</span>
                     </div>
 
                     {/* Bottom row */}
@@ -1038,10 +1065,20 @@ export default function FiggieTradingPage() {
                         fontSize: 14,
                       }}
                     >
-                      <span>♠ {p.hand.Spade} ({p.suitDeltas[0]})</span>
-                      <span>♣ {p.hand.Club} ({p.suitDeltas[1]})</span>
-                      <span>♦ {p.hand.Diamond} ({p.suitDeltas[2]})</span>
-                      <span>♥ {p.hand.Heart} ({p.suitDeltas[3]})</span>
+                      <span>
+                        ♠ {p.hand.Spade} ({p.suitDeltas[0]})
+                      </span>
+                      <span>
+                        ♣ {p.hand.Club} ({p.suitDeltas[1]})
+                      </span>
+                      <span>
+                        <span style={{ color: "#c00" }}>♦ </span>
+                        {p.hand.Diamond} ({p.suitDeltas[2]})
+                      </span>
+                      <span>
+                        <span style={{ color: "#c00" }}>♥ </span>
+                        {p.hand.Heart} ({p.suitDeltas[3]})
+                      </span>
                     </div>
                   </div>
                 </div>

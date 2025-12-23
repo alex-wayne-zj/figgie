@@ -34,9 +34,9 @@ export type RoundEndedPlayerState = {
   id: string; 
   name: string; 
   totalCards: number; 
+  cash: number; 
   suitDeltas: number[]; 
   color: string;
-  cash: number; 
   hand: Hand;   
 };
 
@@ -49,6 +49,8 @@ export type SuitPrice = {
   seller: string
   ask: number
 };
+
+// 与后端 Action/Event 对接需要的数据结构
 
 export interface PlayerInfo {
   id: string;
@@ -69,14 +71,15 @@ export interface Player {
 }
 
 export interface Quote {
+  player_id: string;
   suit: Suit;
   side: Side;
   price: number;
 }
 
 export type Action =
-  | { type: "PlaceQuote"; payload: {id: string; suit: Suit; side: Side; price: number} }
-  | { type: "CancelQuote"; payload: {id: string; suit: Suit; side: Side; price: number} }
+  | { type: "PlaceQuote"; payload: {player_id: string; suit: Suit; side: Side; price: number} }
+  | { type: "CancelQuote"; payload: {player_id: string; suit: Suit; side: Side; price: number} }
   | { type: "StartRound"; payload: {round_id: number; room_id: string} }
   | { type: "EndRound"; payload: {round_id: number; room_id: string} }
   | { type: "EndGame"; payload: {round_id: number; room_id: string; player_id: string} }
@@ -89,12 +92,10 @@ export interface TradeExecutedPayload {
 }
 
 export interface QuoteCanceledPayload {
-  player: string;
   quote: Quote;
 }
 
 export interface QuotePlacedPayload {
-  player: string;
   quote: Quote;
 }
 

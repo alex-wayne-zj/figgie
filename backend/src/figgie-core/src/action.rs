@@ -1,4 +1,4 @@
-use crate::types::{Quote};
+use crate::types::Quote;
 
 #[derive(Clone, Debug)]
 pub enum Action {

@@ -3,6 +3,7 @@ use crate::dispatcher::*;
 use crate::robots::*;
 use crate::adapter::*;
 use figgie_core::*;
+
 use futures::{StreamExt, SinkExt};
 use tokio::sync::mpsc::*;
 use tokio::sync::Mutex;
@@ -10,7 +11,8 @@ use std::collections::HashMap;
 use std::time::Instant;
 use std::sync::Arc;
 use serde_json::Value;
-
+use serde_json::json;
+use log;
 use axum::{
     routing::{get, post},
     response::IntoResponse,
@@ -19,7 +21,6 @@ use axum::{
     extract::ws::{WebSocketUpgrade, Message},
     Router, Json
 };
-use serde_json::json;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -28,21 +29,16 @@ pub struct AppState {
 }
 
 pub fn create_app() -> Router {
-    let DISPATCHERS: Dispatchers = Arc::new(Mutex::new(Vec::new()));
-    let HUMAN_PARTICIPANTS: HumanParticipants = Arc::new(Mutex::new(Vec::new()));
+    let dispatchers: Dispatchers = Arc::new(Mutex::new(Vec::new()));
+    let human_participants: HumanParticipants = Arc::new(Mutex::new(Vec::new()));
 
     Router::new()
-        .route("/", get(hello_figgie))
         .route("/start", post(start_game))
         .route("/ws/{room_id}/{player_id}", get(ws_connect))
         .with_state(AppState {
-            dispatchers: DISPATCHERS,
-            human_participants: HUMAN_PARTICIPANTS,
+            dispatchers: dispatchers,
+            human_participants: human_participants,
         })
-}
-
-async fn hello_figgie() -> impl IntoResponse {
-    (StatusCode::OK, [("content-type", "text/plain; charset=utf-8")], "Hello, Figgie!")
 }
 
 async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequest>,) -> impl IntoResponse {
@@ -56,7 +52,7 @@ async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequ
             Json(json!({ "error": "Figgie requires 5 players" })),
         );
     }
-    println!("{:?}", req);
+    println!("Game Started...");
 
     let config = GameConfig {
         room_name: req.room_name,
@@ -70,9 +66,8 @@ async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequ
         pot: 200,
         trading_duration_secs: 240,
     };
-
     let game = Game::new(config);
-    println!("{:?}", &game);
+    println!("Game Created..");
 
     let (dispatcher_sender, dispatcher_receiver) = channel(64);
     let mut dispatcher = Dispatcher {
@@ -86,8 +81,8 @@ async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequ
     for player in req.players.into_iter() {
         let (participant, event_sender) = create_participant(player.id.clone(), dispatcher_sender.clone());
         dispatcher.register(player.id.clone(), event_sender);
+
         if player.id.starts_with("robot") {
-            println!("is robot");
             let player_state = dispatcher
                 .game
                 .state
@@ -95,7 +90,6 @@ async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequ
                 .iter()
                 .find(|p| p.info.id == player.id)
                 .expect("robot player not found");
-
             let hand = player_state.hand.clone();
             let cash = player_state.cash;
             let Participant {
@@ -107,7 +101,6 @@ async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequ
                 robot_loop(player_id, hand, cash, event_receiver, action_sender).await;
             });
         } else {
-            println!("is human");
             human_participants
                 .lock()
                 .await
@@ -119,11 +112,9 @@ async fn start_game(State(state): State<AppState>, Json(req): Json<StartGameRequ
     dispatchers.lock().await.push(dispatcher.clone());
 
     // 生成初始 RoundStarted events
-    {
-        let mut dispatcher_lock = dispatcher.lock().await;
-        let events = dispatcher_lock.game.start_round(1);
-        dispatcher_lock.handover_events(events).await;
-    }
+    let mut dispatcher_lock = dispatcher.lock().await;
+    let events = dispatcher_lock.game.start_round(1);
+    dispatcher_lock.handover_events(events).await;
 
     tokio::spawn( {
         let dispatcher = dispatcher.clone();
@@ -145,14 +136,12 @@ async fn ws_connect(
     Path((room_id, player_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
     let human_participants = state.human_participants.clone();
-    print!("{:?}", human_participants.clone());
 
     ws.on_upgrade(move | mut socket| async move {
-        println!("room_id = {}, player_id = {}", room_id, player_id);
+        println!("WebSocket connected, room_id = {}, player_id = {}", room_id, player_id);
 
         let participant = {
             let mut vec = human_participants.lock().await;
-            println!("{:?}", vec);
             let idx = vec.iter().position(|p| p.player_id == player_id)
                 .expect("participant not found");
             vec.remove(idx) // 直接拿走，防止重复连接
@@ -184,5 +173,7 @@ async fn ws_connect(
         });
 
         let _ = tokio::join!(send_task, recv_task);
+
+        println!("Player {} websocket disconnected", player_id);
     })
 }

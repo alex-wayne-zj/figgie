@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use rand;
 use rand::seq::SliceRandom;
 
-pub static CARD_VALUE_PER_GOAL_SUIT: i32 = 10;
+pub const CARD_VALUE_PER_GOAL_SUIT: i32 = 10;
 const MAX_QUOTE_PRICE: u32 = 100;
 const MIN_QUOTE_PRICE: u32 = 1;
 
@@ -87,7 +87,7 @@ impl Game {
         }
 
         if quote.side == Side::Offer {
-            // 卖出时，保证手里有对应 suit 的牌即可
+            // 卖出时，保证手里有对应 suit 的牌
             if self.state.players
                 .iter()
                 .find(|p| p.info.id == quote.player_id)
@@ -96,7 +96,7 @@ impl Game {
                 return vec![];
             }
         }
-        // 2️⃣ 尝试撮合
+        // 尝试撮合
         if let Some(idx) = find_matching_quote_idx(&self.state.quotes, &quote) {
             let matched = self.state.quotes.remove(idx);
 
@@ -115,7 +115,7 @@ impl Game {
             }];
         }
 
-        // 3️⃣ 没有撮合，检查是否替换现有 quote
+        // 没有撮合，检查是否替换现有 quote
         let mut replaced = false;
         self.state.quotes.retain(|q| {
             if q.suit == quote.suit && q.side == quote.side {
@@ -138,11 +138,9 @@ impl Game {
             self.state.quotes.push(quote.clone());
             println!("Engine receive the action: {:?}", quote.clone());
             vec![Event::QuotePlaced {
-                player: quote.player_id.clone(),
                 quote,
             }]
         } else {
-            // 没有添加或替换，不返回事件
             vec![]
         }
     }
@@ -183,8 +181,8 @@ impl Game {
             return vec![];
         }
 
+        println!("Quote Cancelled");
         vec![Event::QuoteCanceled {
-            player: quote.player_id.clone(),
             quote,
         }]
     }
@@ -262,6 +260,7 @@ impl Game {
             .unwrap()
             .as_secs();
 
+        println!("Round {} Started", round);
         self.state.players.iter().map(|player| {
             Event::RoundStarted {
                 round_id: round as u8,
@@ -310,6 +309,7 @@ impl Game {
             }
         }
 
+        println!("Round {} Ended", self.round);
         // 返回事件
         vec![Event::RoundEnded {
             round_id: self.round as u8,
@@ -323,6 +323,7 @@ impl Game {
     }
 
     pub fn end_game(&mut self) -> Vec<Event> {
+        println!("Game Ended");
         vec![Event::GameEnded {
             players: self.state.players.clone(),
         }]

@@ -1,10 +1,11 @@
-use std::net::SocketAddr;
-use tokio::net::TcpListener;
 mod app;
 mod types;
 mod dispatcher;
 mod robots;
 mod adapter;
+
+use std::net::SocketAddr;
+use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {

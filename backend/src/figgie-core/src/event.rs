@@ -9,11 +9,9 @@ pub enum Event {
         price: u32,
     },
     QuoteCanceled {
-        player: String,
         quote: Quote,
     },
     QuotePlaced {
-        player: String,
         quote: Quote,
     },
     RoundStarted {

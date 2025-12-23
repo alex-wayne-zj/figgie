@@ -1,4 +1,4 @@
-use crate::types::{Quote};
+use crate::types::Quote;
 
 pub fn find_matching_quote_idx(
     quotes: &[Quote],
